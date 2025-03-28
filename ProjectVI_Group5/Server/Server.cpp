@@ -1,12 +1,9 @@
-// PROJECT-VI-GROUP-5
-// AIRPLANE FLEET -> ID, date (Date & Time), fuel consumption
-
 #define _CRT_SECURE_NO_WARNINGS
-#define MIN_FUEL_AMOUNT		10
-#define PORT			 27000
+#define MIN_FUEL_AMOUNT 10
+#define PORT 27000
 
-#include "AirplaneFleet.h"
-#include <windows.networking.sockets.h>
+#include <winsock2.h>
+#include <windows.h>
 #include <iostream>
 #include <thread>
 #include <ctime>
@@ -14,6 +11,9 @@
 #include <sstream>
 #include <fstream>
 #include <vector>
+#include <mutex>
+#include <map>
+
 #pragma comment(lib, "Ws2_32.lib")
 
 using namespace std;
@@ -55,7 +55,6 @@ void CalculateFuelConsumption(AirplaneFleet& temp, SOCKET& ConnectionSocket)
     }
 }
 
-// thread Function to Handle a Single Client**
 void HandleClient(SOCKET clientSocket) {
 
     ofstream file("airplane_fleet_data.txt", ios::app); // Open file in append mode
@@ -77,7 +76,7 @@ void HandleClient(SOCKET clientSocket) {
         int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
 
         if (bytesReceived <= 0) {
-            cout << "Client disconnected. Closing thread.\n";
+            cout << "Client disconnected. Processing final data...\n";
             break;
         }
 
@@ -88,25 +87,54 @@ void HandleClient(SOCKET clientSocket) {
         FleetPkt.SetDateTime(receivedPkt->timestamp);
         FleetPkt.SetFuelAmount(receivedPkt->fuel);
 
-        // Process fuel level
-        CalculateFuelConsumption(FleetPkt, clientSocket);
+        if (ParseTelemetryPacket(packet, clientId, timestamp, fuelAmount)) {
+            session.airplaneId = clientId;
+            session.timestamps.push_back(timestamp);
+            session.fuelReadings.push_back(fuelAmount);
+
+            cout << "[RECEIVED] ID: " << clientId << ", Time: " << timestamp << ", Fuel: " << fuelAmount << endl;
 
         // Log data
         file << to_string(FleetPkt.GetId()) + "," + FleetPkt.GetDate() + "," + to_string(FleetPkt.GetFuelAmount()) << endl;
 
-        send(clientSocket, "OK", sizeof("OK"), 0);
+            send(clientSocket, "OK", sizeof("OK"), 0);
+        }
+        else {
+            cerr << "Invalid packet received: " << packet << endl;
+            send(clientSocket, "ERR", sizeof("ERR"), 0);
+        }
     }
 
-    file.close();
+    // After disconnect, store average fuel consumption
+    if (!session.fuelReadings.empty()) {
+        double total = 0.0;
+        for (double f : session.fuelReadings) total += f;
+        double avgFuel = total / session.fuelReadings.size();
+
+        {
+            lock_guard<mutex> lock(fileMutex);
+            ofstream file("airplane_fleet_data.txt", ios::app);
+            file << ">>> Flight for Airplane ID: " << clientId << " ended.\n";
+            file << ">>> Average Fuel Consumption: " << avgFuel << " <<<\n\n";
+            file.close();
+        }
+
+        {
+            lock_guard<mutex> lock(fuelMutex);
+            globalTotalFuel += total;
+        }
+
+        cout << "[INFO] Flight ended for ID: " << clientId << ", Avg Fuel: " << avgFuel << endl;
+    }
 
     closesocket(clientSocket);
-    cout << "Client thread exiting." << endl;
+    cout << "Client thread exiting.\n";
 }
 
 int main() {
     WSADATA wsaData;
     SOCKET ServerSocket;
-    sockaddr_in SvrAddr;
+    sockaddr_in serverAddr;
     vector<thread> clientThreads;
 
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
@@ -117,43 +145,42 @@ int main() {
     ServerSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (ServerSocket == INVALID_SOCKET) {
         cerr << "Socket creation failed.\n";
+        WSACleanup();
         return -1;
     }
 
-    SvrAddr.sin_family = AF_INET;
-    SvrAddr.sin_addr.s_addr = INADDR_ANY;
-    SvrAddr.sin_port = htons(PORT);
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+    serverAddr.sin_port = htons(PORT);
 
-    if (bind(ServerSocket, (struct sockaddr*)&SvrAddr, sizeof(SvrAddr)) == SOCKET_ERROR) {
-        cerr << "Binding failed.\n";
+    if (bind(ServerSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+        cerr << "Bind failed.\n";
+        closesocket(ServerSocket);
+        WSACleanup();
         return -1;
     }
 
     if (listen(ServerSocket, SOMAXCONN) == SOCKET_ERROR) {
-        cerr << "Listening failed.\n";
+        cerr << "Listen failed.\n";
+        closesocket(ServerSocket);
+        WSACleanup();
         return -1;
     }
 
-    cout << "Server is running. Waiting for connections...\n";
+    cout << "[SERVER STARTED] Listening on port " << PORT << "...\n";
 
-    // need a better termination condition
     while (true) {
         SOCKET clientSocket = accept(ServerSocket, NULL, NULL);
         if (clientSocket == INVALID_SOCKET) {
-            cerr << "Client accept failed.\n";
+            cerr << "Failed to accept client.\n";
             continue;
         }
 
-        // executes thread and stores in the vector
         clientThreads.emplace_back(thread(HandleClient, clientSocket));
     }
 
-    // finishes execution of threads
-    for (auto& th : clientThreads) {
-        if (th.joinable()) {
-            th.join();
-        }
-    }
+    for (auto& th : clientThreads)
+        if (th.joinable()) th.join();
 
     closesocket(ServerSocket);
     WSACleanup();
