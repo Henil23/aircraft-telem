@@ -5,9 +5,6 @@
 #include <sstream>
 #include <iomanip>
 #include <ctime>
-
-
-
 using namespace std;
 
 // Default Constructor
@@ -16,7 +13,7 @@ AirplaneFleet::AirplaneFleet()
 }
 
 // Constructor
-AirplaneFleet::AirplaneFleet(unsigned int id, const string& dateTime, double fuelAmount)
+AirplaneFleet::AirplaneFleet(int id, const string& dateTime, double fuelAmount)
     : id(id), dateTime(dateTime), fuelAmount(fuelAmount) {
 }
 
@@ -40,6 +37,6 @@ double AirplaneFleet::GetFuelAmount() const { return fuelAmount; }
 unsigned int AirplaneFleet::GetId() const { return id; }
 
 // Setters
-void AirplaneFleet::SetId(unsigned int id) { this->id = id; }
+void AirplaneFleet::SetId(int id) { this->id = id; }
 void AirplaneFleet::SetDateTime(const string& date) { this->dateTime = date; }
 void AirplaneFleet::SetFuelAmount(double fuel) { this->fuelAmount = fuel; }

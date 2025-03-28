@@ -7,7 +7,7 @@ public:
     // [Default] Constructor
     AirplaneFleet();
     // Constructor
-    AirplaneFleet(unsigned int id, const std::string& dateTime, double fuelAmount);
+    AirplaneFleet(int id, const std::string& dateTime, double fuelAmount);
 
     // Function to get formatted date-time string
     std::string GetFormattedDateTime();
@@ -17,7 +17,7 @@ public:
     double GetFuelAmount() const;
     unsigned int GetId() const;
 
-    void SetId(unsigned int id);
+    void SetId(int id);
     void SetDateTime(const std::string& date);
     void SetFuelAmount(double fuel);
 

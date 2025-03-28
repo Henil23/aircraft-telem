@@ -18,36 +18,41 @@
 
 using namespace std;
 
+struct TelemetryPkt
+{
+    char timestamp[20];
+    double fuel;
+};
 
 void ReadTransmittedTelemetryData(string& buffer, AirplaneFleet& temp)
 {
-	// check to see if packet is empty
-	if (!buffer.empty()) { return; }
+    // check to see if packet is empty
+    if (!buffer.empty()) { return; }
 
-	// initialize delimiter
-	string delimiter = ",";
+    // initialize delimiter
+    string delimiter = ",";
 
-	// do not think it will be senting the ID in the packet
-	string dateTime = buffer.substr(0, buffer.find(delimiter));
-	string fuelAmountString = buffer.substr(dateTime.size() + 1); // skips delimiter
+    // do not think it will be senting the ID in the packet
+    string dateTime = buffer.substr(0, buffer.find(delimiter));
+    string fuelAmountString = buffer.substr(dateTime.size() + 1, buffer.find(delimiter));
 
-	// convert to double
-	double fuelAmount = stod(fuelAmountString);
+    // convert to double
+    double fuelAmount = stod(fuelAmountString);
 
-	temp.SetDateTime(dateTime);
-	temp.SetFuelAmount(fuelAmount);
+    temp.SetDateTime(dateTime);
+    temp.SetFuelAmount(fuelAmount);
 }
 
 void CalculateFuelConsumption(AirplaneFleet& temp, SOCKET& ConnectionSocket)
 {
-	double currFuelAmount = temp.GetFuelAmount();
-	if (currFuelAmount < MIN_FUEL_AMOUNT)
-	{
-		cerr << "LOW FUEL ON AIRPLANE ID: " + temp.GetId() << endl;
-		const char warningFuelMessage [] = "LOW FUEL ON AIRPLANE PLEASE LAND TO THE NEAREST POSSIBLE LOCATION";
-		// SEND PACKET TO PLANE TO OF WARNING
-		send(ConnectionSocket, warningFuelMessage, sizeof(warningFuelMessage), 0);
-	}
+    double currFuelAmount = temp.GetFuelAmount();
+    if (currFuelAmount < MIN_FUEL_AMOUNT)
+    {
+        cerr << "LOW FUEL ON AIRPLANE ID: " + temp.GetId() << endl;
+        const char warningFuelMessage[] = "LOW FUEL ON AIRPLANE PLEASE LAND TO THE NEAREST POSSIBLE LOCATION";
+        // SEND PACKET TO PLANE TO OF WARNING
+        send(ConnectionSocket, warningFuelMessage, sizeof(warningFuelMessage), 0);
+    }
 }
 
 // thread Function to Handle a Single Client**
@@ -62,11 +67,12 @@ void HandleClient(SOCKET clientSocket) {
     AirplaneFleet FleetPkt;
 
     // assign random ID to the plane
-    srand(time(NULL));
-    FleetPkt.SetId(rand() % 10000);
+    srand((unsigned)time(NULL));
+    int id = rand() % (100000);
+    FleetPkt.SetId(id);
 
     while (true) {
-        char buffer[50];
+        char buffer[sizeof(TelemetryPkt)];
         memset(buffer, 0, sizeof(buffer));
         int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
 
@@ -75,13 +81,18 @@ void HandleClient(SOCKET clientSocket) {
             break;
         }
 
-        memcpy((char*)&FleetPkt, buffer, sizeof(AirplaneFleet));
+        // Cast the received buffer back to the TelemetryPkt struct
+        TelemetryPkt* receivedPkt = (TelemetryPkt*)buffer;
+
+        // set values to airfleet object
+        FleetPkt.SetDateTime(receivedPkt->timestamp);
+        FleetPkt.SetFuelAmount(receivedPkt->fuel);
 
         // Process fuel level
         CalculateFuelConsumption(FleetPkt, clientSocket);
 
         // Log data
-        file << FleetPkt.GetId() + "," + FleetPkt.GetDate() + "," + to_string(FleetPkt.GetFuelAmount()) << endl;
+        file << to_string(FleetPkt.GetId()) + "," + FleetPkt.GetDate() + "," + to_string(FleetPkt.GetFuelAmount()) << endl;
 
         send(clientSocket, "OK", sizeof("OK"), 0);
     }

@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{285e85d8-0d0c-4a56-b20e-f77365c14101}</ProjectGuid>
-    <RootNamespace>ProjectVIGroup5</RootNamespace>
+    <ProjectGuid>{b586a965-7403-487b-8b3f-673f68dfd82c}</ProjectGuid>
+    <RootNamespace>Server</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -129,9 +129,6 @@
   <ItemGroup>
     <ClCompile Include="AirplaneFleet.cpp" />
     <ClCompile Include="Server.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="airplane_fleet_data.txt" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AirplaneFleet.h" />
