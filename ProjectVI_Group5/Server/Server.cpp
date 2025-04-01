@@ -70,7 +70,7 @@ void HandleClient(SOCKET clientSocket) {
     int id = rand() % (100000);
     FleetPkt.SetId(id);
 
-    std::cout << "Airplane ID has left: " + FleetPkt.GetId();
+    std::cout << "Airplane ID is in flight: " + FleetPkt.GetId();
 
     while (true) {
         char buffer[sizeof(TelemetryPkt)];
