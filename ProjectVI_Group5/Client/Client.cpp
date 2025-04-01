@@ -66,11 +66,6 @@ void SendTelemetry(const string& serverIp) {
         return;
     }
 
-    // Prepare AirplaneFleet object
-    // AirplaneFleet fleetPkt;
-    //srand(time(NULL));  // Random ID seed
-    //fleetPkt.SetId(rand() % 10000);
-
     string line;
     while (getline(file, line)) {
         if (line.empty()) continue;
@@ -105,7 +100,6 @@ void SendTelemetry(const string& serverIp) {
         }
 
         cout << "[SENT] ID: " << timestamp << ", Fuel: " << fuel << "\n";
-        //this_thread::sleep_for(chrono::seconds(1));
     }
 
     file.close();

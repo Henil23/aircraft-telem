@@ -2,6 +2,7 @@
 #define MIN_FUEL_AMOUNT 10
 #define PORT 27000
 
+#include "AirplaneFleet.h"
 #include <winsock2.h>
 #include <windows.h>
 #include <iostream>
@@ -13,7 +14,6 @@
 #include <vector>
 #include <mutex>
 #include <map>
-
 #pragma comment(lib, "Ws2_32.lib")
 
 using namespace std;
@@ -70,13 +70,15 @@ void HandleClient(SOCKET clientSocket) {
     int id = rand() % (100000);
     FleetPkt.SetId(id);
 
+    std::cout << "Airplane ID has left: " + FleetPkt.GetId();
+
     while (true) {
         char buffer[sizeof(TelemetryPkt)];
         memset(buffer, 0, sizeof(buffer));
         int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
 
         if (bytesReceived <= 0) {
-            cout << "Client disconnected. Processing final data...\n";
+            std::cout << "Client disconnected. Processing final data...\n";
             break;
         }
 
@@ -87,48 +89,14 @@ void HandleClient(SOCKET clientSocket) {
         FleetPkt.SetDateTime(receivedPkt->timestamp);
         FleetPkt.SetFuelAmount(receivedPkt->fuel);
 
-        if (ParseTelemetryPacket(packet, clientId, timestamp, fuelAmount)) {
-            session.airplaneId = clientId;
-            session.timestamps.push_back(timestamp);
-            session.fuelReadings.push_back(fuelAmount);
-
-            cout << "[RECEIVED] ID: " << clientId << ", Time: " << timestamp << ", Fuel: " << fuelAmount << endl;
-
         // Log data
         file << to_string(FleetPkt.GetId()) + "," + FleetPkt.GetDate() + "," + to_string(FleetPkt.GetFuelAmount()) << endl;
 
             send(clientSocket, "OK", sizeof("OK"), 0);
-        }
-        else {
-            cerr << "Invalid packet received: " << packet << endl;
-            send(clientSocket, "ERR", sizeof("ERR"), 0);
-        }
-    }
-
-    // After disconnect, store average fuel consumption
-    if (!session.fuelReadings.empty()) {
-        double total = 0.0;
-        for (double f : session.fuelReadings) total += f;
-        double avgFuel = total / session.fuelReadings.size();
-
-        {
-            lock_guard<mutex> lock(fileMutex);
-            ofstream file("airplane_fleet_data.txt", ios::app);
-            file << ">>> Flight for Airplane ID: " << clientId << " ended.\n";
-            file << ">>> Average Fuel Consumption: " << avgFuel << " <<<\n\n";
-            file.close();
-        }
-
-        {
-            lock_guard<mutex> lock(fuelMutex);
-            globalTotalFuel += total;
-        }
-
-        cout << "[INFO] Flight ended for ID: " << clientId << ", Avg Fuel: " << avgFuel << endl;
     }
 
     closesocket(clientSocket);
-    cout << "Client thread exiting.\n";
+    std::cout << "Client thread exiting.\n";
 }
 
 int main() {
@@ -167,7 +135,7 @@ int main() {
         return -1;
     }
 
-    cout << "[SERVER STARTED] Listening on port " << PORT << "...\n";
+    std::cout << "[SERVER STARTED] Listening on port " << PORT << "...\n";
 
     while (true) {
         SOCKET clientSocket = accept(ServerSocket, NULL, NULL);
@@ -178,7 +146,7 @@ int main() {
 
         clientThreads.emplace_back(thread(HandleClient, clientSocket));
     }
-
+    
     for (auto& th : clientThreads)
         if (th.joinable()) th.join();
 
