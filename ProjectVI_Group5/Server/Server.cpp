@@ -4,6 +4,7 @@
 
 #include "AirplaneFleet.h"
 #include <winsock2.h>
+#include <mutex>
 #include <windows.h>
 #include <iostream>
 #include <thread>
@@ -12,11 +13,10 @@
 #include <sstream>
 #include <fstream>
 #include <vector>
-#include <mutex>
 #include <map>
+using namespace std;
 #pragma comment(lib, "Ws2_32.lib")
 
-using namespace std;
 
 struct TelemetryPkt
 {
@@ -55,22 +55,18 @@ void CalculateFuelConsumption(AirplaneFleet& temp, SOCKET& ConnectionSocket)
     }
 }
 
+mutex fileMutex;  // Global mutex for file access
+
+
 void HandleClient(SOCKET clientSocket) {
-
-    ofstream file("airplane_fleet_data.txt", ios::app); // Open file in append mode
-    if (!file) {
-        cerr << "Error opening file for writing." << endl;
-        return;
-    }
-
     AirplaneFleet FleetPkt;
 
-    // assign random ID to the plane
+    // Assign random ID to the plane
     srand((unsigned)time(NULL));
     int id = rand() % (100000);
     FleetPkt.SetId(id);
 
-    std::cout << "Airplane ID is in flight: " + FleetPkt.GetId();
+    std::cout << "Airplane ID in flight: " << FleetPkt.GetId() << std::endl;
 
     while (true) {
         char buffer[sizeof(TelemetryPkt)];
@@ -85,14 +81,22 @@ void HandleClient(SOCKET clientSocket) {
         // Cast the received buffer back to the TelemetryPkt struct
         TelemetryPkt* receivedPkt = (TelemetryPkt*)buffer;
 
-        // set values to airfleet object
+        // Set values to airfleet object
         FleetPkt.SetDateTime(receivedPkt->timestamp);
         FleetPkt.SetFuelAmount(receivedPkt->fuel);
 
-        // Log data
-        file << to_string(FleetPkt.GetId()) + "," + FleetPkt.GetDate() + "," + to_string(FleetPkt.GetFuelAmount()) << endl;
+        {
+            // Protect file writing with a scoped lock
+            scoped_lock lock(fileMutex);
+            std::ofstream file("airplane_fleet_data.txt", std::ios::app); // Open file in append mode
+            if (!file) {
+                cerr << "Error opening file for writing." << endl;
+                return;
+            }
+            file << FleetPkt.GetId() << "," << FleetPkt.GetDate() << "," << FleetPkt.GetFuelAmount() << std::endl;
+        } // File automatically closes when going out of scope
 
-            send(clientSocket, "OK", sizeof("OK"), 0);
+        send(clientSocket, "OK", sizeof("OK"), 0);
     }
 
     closesocket(clientSocket);
